@@ -19,14 +19,14 @@ provider "aws" {
 
 resource "aws_security_group" "demo" {
   name        = "devsecops-demo-sg"
-  description = "Security group used only for static IaC analysis in the academic demo"
+  description = "Intentionally vulnerable Security Group for academic DevSecOps demo"
 
   ingress {
-    description = "SSH restricted to the private network used by the example"
+    description = "DEMO ONLY: SSH intentionally exposed to the Internet"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -37,7 +37,7 @@ resource "aws_security_group" "demo" {
   }
 
   tags = {
-    Name        = "devsecops-demo"
+    Name        = "devsecops-demo-vulnerable"
     Environment = "demo"
   }
 }
