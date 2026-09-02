@@ -1,0 +1,8 @@
+rules:
+  - id: demo-javascript-eval
+    languages:
+      - javascript
+    message: "Uso de eval() com entrada dinâmica pode permitir execução arbitrária de código."
+    severity: ERROR
+    patterns:
+      - pattern: eval($X)
