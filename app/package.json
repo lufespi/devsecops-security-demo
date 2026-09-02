@@ -1,0 +1,14 @@
+{
+  "name": "devsecops-security-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aplicação mínima para demonstração acadêmica de DevSecOps.",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js"
+  },
+  "dependencies": {
+    "express": "5.1.0",
+    "lodash": "4.17.21"
+  }
+}
