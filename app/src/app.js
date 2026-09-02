@@ -3,14 +3,13 @@ const express = require('express');
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.disable('x-powered-by');
-app.use(express.json({ limit: '10kb' }));
+app.use(express.json());
 
 app.get('/', (_req, res) => {
   res.json({
     service: 'devsecops-security-demo',
-    status: 'ok',
-    message: 'Aplicação segura para demonstração acadêmica de DevSecOps.'
+    status: 'vulnerable-demo',
+    message: 'Branch criada propositalmente com falhas para a demonstração.'
   });
 });
 
@@ -19,16 +18,15 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/calc', (req, res) => {
-  const a = Number(req.query.a);
-  const b = Number(req.query.b);
+  const expression = req.query.expression || '1 + 1';
 
-  if (!Number.isFinite(a) || !Number.isFinite(b)) {
-    return res.status(400).json({ error: 'Parâmetros a e b devem ser números.' });
-  }
+  // VULNERABILIDADE INTENCIONAL PARA DEMONSTRAÇÃO ACADÊMICA:
+  // entrada controlada pelo usuário é executada com eval().
+  const result = eval(expression);
 
-  return res.json({ result: a + b });
+  res.json({ result });
 });
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Demo app listening on port ${port}`);
+  console.log(`Vulnerable demo app listening on port ${port}`);
 });
