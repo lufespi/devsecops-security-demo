@@ -1,0 +1,144 @@
+name: DevSecOps Security Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sast:
+    name: SAST - Semgrep
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Semgrep
+        run: pip install semgrep
+      - name: Scan source code
+        run: semgrep scan --config .semgrep.yml --error app/src
+
+  sca:
+    name: SCA - Trivy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate dependency lockfile
+        working-directory: app
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Scan dependencies
+        run: |
+          docker run --rm \
+            -v "$PWD:/repo" \
+            aquasec/trivy:latest fs \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            /repo/app
+
+  secrets:
+    name: Secret Scan - Gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan repository for demo secrets
+        run: |
+          docker run --rm \
+            -v "$PWD:/repo" \
+            zricethezav/gitleaks:latest detect \
+            --source=/repo \
+            --config=/repo/.gitleaks.toml \
+            --no-git \
+            --exit-code=1
+
+  iac:
+    name: IaC Scan - Checkov
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Checkov
+        run: pip install checkov
+      - name: Check SSH exposure in Terraform
+        run: checkov -d terraform --check CKV_AWS_24 --compact
+
+  build:
+    name: Build - Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build application image
+        run: docker build -t devsecops-security-demo ./app
+
+  dast:
+    name: DAST - OWASP ZAP
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install and start demo application
+        working-directory: app
+        run: |
+          npm install --ignore-scripts
+          nohup npm start > /tmp/devsecops-demo.log 2>&1 &
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:3000/health && exit 0
+            sleep 1
+          done
+          cat /tmp/devsecops-demo.log
+          exit 1
+      - name: Run ZAP baseline scan
+        run: |
+          docker run --rm --network host \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t http://127.0.0.1:3000 \
+            -m 1 \
+            -I
+
+  security-gate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [sast, sca, secrets, iac, build, dast]
+    steps:
+      - name: Evaluate security checks
+        env:
+          SAST: ${{ needs.sast.result }}
+          SCA: ${{ needs.sca.result }}
+          SECRETS: ${{ needs.secrets.result }}
+          IAC: ${{ needs.iac.result }}
+          BUILD: ${{ needs.build.result }}
+          DAST: ${{ needs.dast.result }}
+        run: |
+          printf '%-12s %s\n' "SAST" "$SAST"
+          printf '%-12s %s\n' "SCA" "$SCA"
+          printf '%-12s %s\n' "Secrets" "$SECRETS"
+          printf '%-12s %s\n' "IaC" "$IAC"
+          printf '%-12s %s\n' "Build" "$BUILD"
+          printf '%-12s %s\n' "DAST" "$DAST"
+
+          if [ "$SAST" != "success" ] || \
+             [ "$SCA" != "success" ] || \
+             [ "$SECRETS" != "success" ] || \
+             [ "$IAC" != "success" ] || \
+             [ "$BUILD" != "success" ] || \
+             [ "$DAST" != "success" ]; then
+            echo "Security Gate: FAILED"
+            exit 1
+          fi
+
+          echo "Security Gate: PASSED"
