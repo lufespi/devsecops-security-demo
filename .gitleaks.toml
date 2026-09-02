@@ -1,0 +1,7 @@
+title = "DevSecOps Security Demo"
+
+[[rules]]
+id = "demo-hardcoded-secret"
+description = "Credencial fictícia hardcoded usada na demonstração acadêmica"
+regex = '''DEMO_SECRET\s*=\s*["'][^"']+["']'''
+tags = ["demo", "secret"]
